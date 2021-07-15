@@ -1,11 +1,4 @@
----
-title: "STATS_C116_Final"
-author: "Zixuan Chen"
-date: "6/12/2021"
-output:
-  pdf_document: default
-  html_document: default
----
+
 
 #### World Happiness Prediction
 
