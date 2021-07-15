@@ -1,0 +1,291 @@
+---
+title: "STATS_C116_Final"
+author: "Zixuan Chen"
+date: "6/12/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+#### World Happiness Prediction
+
+```{r, warning=FALSE, message=FALSE}
+library(foreign)
+library(ggplot2)
+library(rstanarm)
+library(gridExtra)
+library(dplyr)
+library(bayesplot)
+library(loo)
+library(projpred)
+data = read.csv('world-happiness-report.csv')
+head(data)
+```
+##### Step 1: Exploratory Data Analysis
+
+
+1) Data Summary
+```{r}
+cat('Dimension of Data: ', dim(data)[1], ' rows, ', dim(data)[2], ' variables', sep = '')
+```
+
+```{r}
+cat('Number of Country:', length(unique(data$Country.name)))
+cat('\n')
+cat('Year Span:', min(data$year), 'to', max(data$year))
+```
+
+2) Top 10 Countries in Life Ladder Score
+```{r}
+color_vec = c('dodgerblue', 'brown1', 'cyan', 'blueviolet', 'deeppink', 'darkred', 'seagreen1', 'slateblue')
+t10 = data %>% 
+  group_by(Country.name) %>%
+  summarise(Life.Ladder.Score = mean(Life.Ladder, na.rm = TRUE)) %>%
+  arrange(desc(Life.Ladder.Score)) %>%
+  head(10)
+t10
+ggplot(t10, aes(x = reorder(Country.name, -Life.Ladder.Score), y = Life.Ladder.Score)) + 
+  geom_bar(stat = 'identity', fill = color_vec[1]) + 
+  xlab('Country') + ylab('Life Ladder Score') + coord_cartesian(ylim = c(min(t10$Life.Ladder.Score), max(t10$Life.Ladder.Score))) + theme(axis.text.x = element_text(angle = 20))
+```
+3) Top 10 Countries in GDP per capita
+```{r}
+t10_gdp = data %>% 
+  group_by(Country.name) %>%
+  summarise(Log.GDP.per.capita = mean(Log.GDP.per.capita, na.rm = TRUE)) %>%
+  arrange(desc(Log.GDP.per.capita)) %>%
+  mutate(GDP.per.capita = exp(Log.GDP.per.capita)) %>%
+  select(Country.name, GDP.per.capita) %>%
+  head(10)
+t10_gdp
+ggplot(t10_gdp, aes(x = reorder(Country.name, -GDP.per.capita), y = GDP.per.capita)) + 
+  geom_bar(stat = 'identity', fill = color_vec[2]) + 
+  xlab('Country') + ylab('GDP per capita') + theme(axis.text.x = element_text(angle = 30))
+
+```
+4) Top 10 Countries in Social Support
+```{r}
+t10 = data %>% 
+  group_by(Country.name) %>%
+  summarise(Social.support = mean(Social.support, na.rm = TRUE)) %>%
+  arrange(desc(Social.support)) %>%
+  head(10)
+t10
+ggplot(t10, aes(x = reorder(Country.name, -Social.support), y = Social.support)) + 
+  geom_bar(stat = 'identity', fill = color_vec[3]) + 
+  xlab('Country') + ylab('Social Support') + coord_cartesian(ylim = c(min(t10$Social.support), max(t10$Social.support)))
+```
+
+5) Top 10 Countries in Healthy.life.expectancy.at.birth
+```{r}
+t10 = data %>% 
+  group_by(Country.name) %>%
+  summarise(Healthy.life.expectancy.at.birth = mean(Healthy.life.expectancy.at.birth, na.rm = TRUE)) %>%
+  arrange(desc(Healthy.life.expectancy.at.birth)) %>%
+  head(10)
+t10
+ggplot(t10, aes(x = reorder(Country.name, -Healthy.life.expectancy.at.birth), y = Healthy.life.expectancy.at.birth)) + 
+  geom_bar(stat = 'identity', fill = color_vec[4]) + 
+  xlab('Country') + ylab('Healthy.life.expectancy.at.birth') + coord_cartesian(ylim = c(min(t10$Healthy.life.expectancy.at.birth), max(t10$Healthy.life.expectancy.at.birth)))
+```
+6) Top 10 Countries in Freedom.to.make.life.choices
+```{r}
+t10 = data %>% 
+  group_by(Country.name) %>%
+  summarise(Freedom.to.make.life.choices = mean(Freedom.to.make.life.choices, na.rm = TRUE)) %>%
+  arrange(desc(Freedom.to.make.life.choices)) %>%
+  head(10)
+t10
+ggplot(t10, aes(x = reorder(Country.name, -Freedom.to.make.life.choices), y = Freedom.to.make.life.choices)) + 
+  geom_bar(stat = 'identity', fill = color_vec[5]) + 
+  xlab('Country') + ylab('Freedom.to.make.life.choices') + coord_cartesian(ylim = c(min(t10$Freedom.to.make.life.choices), max(t10$Freedom.to.make.life.choices)))
+```
+
+
+7) Top 10 Countries in Generosity
+```{r}
+t10 = data %>% 
+  group_by(Country.name) %>%
+  summarise(Generosity = mean(Generosity, na.rm = TRUE)) %>%
+  arrange(desc(Generosity)) %>%
+  head(10)
+t10
+ggplot(t10, aes(x = reorder(Country.name, -Generosity), y = Generosity)) + 
+  geom_bar(stat = 'identity', fill = color_vec[6]) + 
+  xlab('Country') + ylab('Generosity') + coord_cartesian(ylim = c(min(t10$Generosity), max(t10$Generosity)))
+```
+8) Top 10 Countries in Perceptions.of.corruption
+```{r}
+t10 = data %>% 
+  group_by(Country.name) %>%
+  summarise(Perceptions.of.corruption = mean(Perceptions.of.corruption, na.rm = TRUE)) %>%
+  arrange(desc(Perceptions.of.corruption)) %>%
+  head(10)
+t10
+ggplot(t10, aes(x = reorder(Country.name, -Perceptions.of.corruption), y = Perceptions.of.corruption)) + 
+  geom_bar(stat = 'identity', fill = color_vec[7]) + 
+  xlab('Country') + ylab('Perceptions.of.corruption') + coord_cartesian(ylim = c(min(t10$Perceptions.of.corruption), max(t10$Perceptions.of.corruption)))
+
+
+```
+
+
+
+9) Top 10 Countries in Positive.affect
+```{r}
+t10 = data %>% 
+  group_by(Country.name) %>%
+  summarise(Positive.affect = mean(Positive.affect, na.rm = TRUE)) %>%
+  arrange(desc(Positive.affect)) %>%
+  head(10)
+t10
+ggplot(t10, aes(x = reorder(Country.name, -Positive.affect), y = Positive.affect)) + 
+  geom_bar(stat = 'identity', fill = "pink") + 
+  xlab('Country') + ylab('Positive.affect') + coord_cartesian(ylim = c(min(t10$Positive.affect), max(t10$Positive.affect)))
+```
+
+11) Top 5 GDP Countries Life.Ladder change over year
+```{r}
+top5_gdp_country = data %>%
+  group_by(Country.name) %>%
+  summarise(Log.GDP.per.capita = mean(Log.GDP.per.capita)) %>%
+  arrange(desc(Log.GDP.per.capita)) %>%
+  select(Country.name) %>%
+  head(5) %>%
+  c()
+top5 = data %>% 
+  select(Country.name, year, Life.Ladder) %>%
+  filter(Country.name %in% top5_gdp_country$Country.name)
+ggplot(top5, aes(x = year,  y = Life.Ladder, group = Country.name, colour = Country.name)) + geom_line()
+```
+
+12) Top 5 GDP Countries Log.GDP.per.capita change over year
+```{r}
+top5_gdp_country = data %>%
+  group_by(Country.name) %>%
+  summarise(Log.GDP.per.capita = mean(Log.GDP.per.capita)) %>%
+  arrange(desc(Log.GDP.per.capita)) %>%
+  select(Country.name) %>%
+  head(5) %>%
+  c()
+top5 = data %>% 
+  select(Country.name, year, Log.GDP.per.capita) %>%
+  filter(Country.name %in% top5_gdp_country$Country.name)
+ggplot(top5, aes(x = year,  y = Log.GDP.per.capita, group = Country.name, colour = Country.name)) + geom_line()
+```
+
+1) Distribution of Variables
+```{r, warning=FALSE}
+ht1 = ggplot(data, aes(Life.Ladder)) + geom_histogram(color = 'dodgerblue', bins = 50)
+ht2 = ggplot(data, aes(Log.GDP.per.capita)) + geom_histogram(color = 'dodgerblue', bins = 50)
+ht3 = ggplot(data, aes(Social.support)) + geom_histogram(color = 'dodgerblue', bins = 50)
+ht4 = ggplot(data, aes(Healthy.life.expectancy.at.birth)) + geom_histogram(color = 'dodgerblue', bins = 50)
+ht5 = ggplot(data, aes(Freedom.to.make.life.choices)) + geom_histogram(color = 'dodgerblue', bins = 50)
+ht6 = ggplot(data, aes(Generosity)) + geom_histogram(color = 'dodgerblue', bins = 50)
+ht7 = ggplot(data, aes(Perceptions.of.corruption)) + geom_histogram(color = 'dodgerblue', bins = 50)
+ht8 = ggplot(data, aes(Positive.affect)) + geom_histogram(color = 'violet', bins = 50)
+
+grid.arrange(ht1, ht2, ht3, ht4, ht5, ht6, ht7, ht8, nrow = 2)
+```
+
+2) Correlation between variables and happiness (positive.affect variable)
+
+```{r, warning=FALSE}
+color_vec = c('dodgerblue', 'brown1', 'cyan', 'blueviolet', 'deeppink', 'darkred', 'seagreen1')
+htt1 = ggplot(data, aes(x = Life.Ladder, y = Positive.affect)) + geom_point(color = color_vec[1])
+htt2 = ggplot(data, aes(x = Log.GDP.per.capita, y = Positive.affect)) + geom_point(color = color_vec[2])
+htt3 = ggplot(data, aes(x = Social.support, y = Positive.affect)) + geom_point(color = color_vec[3])
+htt4 = ggplot(data, aes(x = Healthy.life.expectancy.at.birth, y = Positive.affect)) + geom_point(color = color_vec[4])
+htt5 = ggplot(data, aes(x = Freedom.to.make.life.choices, y = Positive.affect)) + geom_point(color = color_vec[5])
+htt6 = ggplot(data, aes(x = Generosity, y = Positive.affect)) + geom_point(color = color_vec[6])
+htt7 = ggplot(data, aes(x = Perceptions.of.corruption, y = Positive.affect)) + geom_point(color = color_vec[7])
+
+grid.arrange(htt1, htt2, htt3, htt4, htt5, htt6, htt7, nrow = 2)
+```
+
+##### Step 2: Data Cleaning
+
+Fill in missing value with mean
+```{r}
+### Fill in NAs
+for(i in 3:ncol(data)){
+  data[is.na(data[,i]), i] <- mean(data[,i], na.rm = TRUE)
+  data[, i] = round(data[, i], 4)
+}
+```
+
+Standardize data
+```{r}
+for (i in 3:ncol(data)){
+  col_mean = mean(data[, i])
+  col_sd = sd(data[, i])
+  data[, i] = (data[, i] - col_mean) / col_sd
+}
+```
+
+Convert Country and Year to Factor
+```{r}
+data$Country.name = factor(data$Country.name)
+data$year = factor(data$year)
+```
+
+##### Step 3: Bayesian Modeling 
+
+```{r}
+glm_fit = glm(Positive.affect ~ Life.Ladder + Log.GDP.per.capita + Social.support + Healthy.life.expectancy.at.birth
+         + Freedom.to.make.life.choices + Generosity + Perceptions.of.corruption, data = data)
+summary(glm_fit)
+```
+
+```{r}
+set.seed(42)
+bglm_fit <- stan_glm(Positive.affect ~ Life.Ladder + Log.GDP.per.capita + Social.support + Healthy.life.expectancy.at.birth
+                 + Freedom.to.make.life.choices + Generosity + Perceptions.of.corruption, data = data)
+summary(bglm_fit)
+plot(bglm_fit)
+pp_check(bglm_fit)
+plot(bglm_fit, "areas", prob = 0.95, prob_outer = 1)
+round(posterior_interval(bglm_fit, prob = 0.9), 2)
+```
+### Step 4 Model Feature Selection
+```{r}
+glm_fit_sub = glm(Positive.affect ~ Life.Ladder + Log.GDP.per.capita + Social.support + Freedom.to.make.life.choices + Generosity, data = data)
+summary(glm_fit_sub)
+```
+
+
+```{r}
+set.seed(42)
+glm_bfit_sub = stan_glm(Positive.affect ~ Life.Ladder + Log.GDP.per.capita + Social.support + Freedom.to.make.life.choices + Generosity, data = data)
+summary(glm_bfit_sub)
+plot(glm_bfit_sub)
+pp_check(glm_bfit_sub)
+plot(glm_bfit_sub, "areas", prob = 0.95, prob_outer = 1)
+round(posterior_interval(glm_bfit_sub, prob = 0.9), 2)
+```
+
+```{r}
+refmodel <- get_refmodel(glm_bfit_sub)
+vs <- cv_varsel(refmodel, cv_meathod = 'kfold', K = 10)
+```
+
+```{r}
+plot(vs, stats = 'elpd')
+plot(vs, stats = c('elpd', 'rmse'), deltas = TRUE)
+```
+
+```{r}
+mcmc_areas(as.matrix(refmodel$fit),
+            pars = c("(Intercept)", solution_terms(vs),
+                     "sigma")) +
+            coord_cartesian(xlim = c(-2, 2))
+```
+
+```{r}
+pred <- proj_linpred(vs, newdata = data, integrated = TRUE)
+ggplot() +
+  geom_point(aes(x = pred$pred,y = data$Positive.affect)) + 
+  geom_abline(slope = 1, color = "red") + 
+  labs(x = "Predictions", y = "True Value")
+```
+
